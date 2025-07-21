@@ -1,0 +1,17 @@
+C C C C C D D D D D
+G G G · C D · J J J
+G · G C C D D J · J
+G F F F I I I I I J
+G F E F I · K K K J
+G F E · I I K · K J
+· F E H H H H H K ·
+E F E A A B B H K ·
+E E E · A B H H K ·
+A A A A A B B B B B
+
+请你创建一个HTML的游戏，是可以拖放这个[
+                [1, 1, 0, 0, 0],
+                [1, 0, 0, 0, 0], 
+                [1, 1, 1, 1, 1]
+            ] J形块的（让旋转、镜像的八个形状的J形块左右两边各摆四个吧）。游戏目的是让用户拖放11个J形块到10*10的正方形中。用户可以把当前的局面输出成A
+  SCII文本

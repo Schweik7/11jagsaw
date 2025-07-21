@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J形块拼图游戏</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        
+        .game-area {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        
+        .shapes-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 200px;
+        }
+        
+        .shapes-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .j-block {
+            display: grid;
+            gap: 1px;
+            cursor: grab;
+            padding: 5px;
+            border: 2px solid #ccc;
+            border-radius: 5px;
+            background-color: white;
+            margin: 5px;
+        }
+        
+        .j-block:active {
+            cursor: grabbing;
+        }
+        
+        .j-block.dragging {
+            opacity: 0.7;
+        }
+        
+        .drag-preview {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0.8;
+            display: grid;
+            gap: 2px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 2px solid #333;
+            border-radius: 5px;
+            padding: 5px;
+        }
+        
+        .drag-preview .cell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ddd;
+        }
+        
+        .drag-preview .filled {
+            border-color: #333;
+        }
+        
+        .cell {
+            width: 18px;
+            height: 18px;
+            border: 1px solid #ddd;
+        }
+        
+        .filled {
+            border-color: #333;
+        }
+        
+        .grid-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 30px);
+            grid-template-rows: repeat(10, 30px);
+            gap: 2px;
+            border: 3px solid #333;
+            background-color: #333;
+            padding: 5px;
+        }
+        
+        .grid-cell {
+            width: 30px;
+            height: 30px;
+            background-color: #fafafa;
+            border: 1px solid #ddd;
+        }
+        
+        .grid-cell.occupied {
+            border-color: #333;
+        }
+        
+        .grid-cell.preview {
+            background-color: #81C784 !important;
+            border-color: #66BB6A;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background-color: #1976D2;
+        }
+        
+        .output {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        .ascii-output {
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre;
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            margin-top: 10px;
+        }
+        
+        .status {
+            text-align: center;
+            margin: 20px 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>J形块拼图游戏</h1>
+        <div class="status">已放置J形块: <span id="placed-count">0</span></div>
+        
+        <div class="game-area">
+            <div class="shapes-container">
+                <div class="shapes-group">
+                    <h3>左侧J形块</h3>
+                    <div id="left-shapes"></div>
+                </div>
+            </div>
+            
+            <div class="grid-container">
+                <h3>10×10 游戏区域</h3>
+                <div class="game-grid" id="game-grid"></div>
+                <div class="controls">
+                    <button onclick="undo()">撤销</button>
+                    <button onclick="clearGrid()">清空网格</button>
+                    <button onclick="exportASCII()">输出ASCII</button>
+                </div>
+            </div>
+            
+            <div class="shapes-container">
+                <div class="shapes-group">
+                    <h3>右侧J形块</h3>
+                    <div id="right-shapes"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="output">
+            <h3>ASCII输出:</h3>
+            <div class="ascii-output" id="ascii-output">拖放J形块到网格中，然后点击"输出ASCII"查看结果</div>
+        </div>
+    </div>
+
+    <script>
+        // J形块的8种变形（每个都是8个格子）
+        const jBlockShapes = [
+            // 原始形状 - 8个格子
+            [
+                [1, 1, 0, 0, 0],
+                [1, 0, 0, 0, 0],
+                [1, 1, 1, 1, 1]
+            ],
+            // 90度旋转 - 8个格子
+            [
+                [0, 0, 1],
+                [0, 0, 1],
+                [0, 0, 1],
+                [1, 0, 1],
+                [1, 1, 1]
+            ],
+            // 180度旋转 - 8个格子
+            [
+                [1, 1, 1, 1, 1],
+                [0, 0, 0, 0, 1],
+                [0, 0, 0, 1, 1]
+            ],
+            // 270度旋转 - 8个格子
+            [
+                [1, 1, 1],
+                [1, 0, 1],
+                [1, 0, 0],
+                [1, 0, 0],
+                [1, 0, 0]
+            ],
+            // 镜像 - 8个格子
+            [
+                [0, 0, 0, 1, 1],
+                [0, 0, 0, 0, 1],
+                [1, 1, 1, 1, 1]
+            ],
+            // 镜像90度旋转 - 8个格子
+            [
+                [1, 0, 0],
+                [1, 0, 0],
+                [1, 0, 0],
+                [1, 0, 1],
+                [1, 1, 1]
+            ],
+            // 镜像180度旋转 - 8个格子
+            [
+                [1, 1, 1, 1, 1],
+                [1, 0, 0, 0, 0],
+                [1, 1, 0, 0, 0]
+            ],
+            // 镜像270度旋转 - 8个格子
+            [
+                [1, 1, 1],
+                [1, 0, 1],
+                [0, 0, 1],
+                [0, 0, 1],
+                [0, 0, 1]
+            ]
+        ];
+
+        // 颜色和字母数组
+        const colors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57',
+            '#FF9FF3', '#54A0FF', '#5F27CD', '#00D2D3', '#FF9F43',
+            '#FD79A8', '#FDCB6E', '#6C5CE7', '#A29BFE', '#74B9FF'
+        ];
+        
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+        // 游戏状态
+        const gameState = {
+            grid: Array(10).fill(null).map(() => Array(10).fill(0)),
+            placedBlocks: 0,
+            draggedShape: null,
+            currentColor: null,
+            currentLetter: null,
+            history: [],
+            dragPreview: null
+        };
+
+        // 游戏配置
+        const config = {
+            gridSize: 10,
+            cellSize: 30,
+            gap: 2,
+            borderWidth: 3,
+            padding: 5
+        };
+
+        function initGame() {
+            createGameGrid();
+            createJBlocks();
+            updatePlacedCount();
+            
+            // 添加全局鼠标移动事件
+            document.addEventListener('dragover', (e) => {
+                updateDragPreviewPosition(e.clientX, e.clientY);
+            });
+        }
+
+        function createGameGrid() {
+            const gridElement = document.getElementById('game-grid');
+            gridElement.innerHTML = '';
+            
+            const totalCells = config.gridSize * config.gridSize;
+            for (let i = 0; i < totalCells; i++) {
+                const cell = createElement('div', 'grid-cell', {
+                    'data-row': Math.floor(i / config.gridSize),
+                    'data-col': i % config.gridSize
+                });
+                gridElement.appendChild(cell);
+            }
+            
+            // 添加拖放事件监听
+            ['dragover', 'drop', 'dragleave'].forEach(event => {
+                gridElement.addEventListener(event, dragEventHandlers[event]);
+            });
+        }
+
+        function createJBlocks() {
+            const leftContainer = document.getElementById('left-shapes');
+            const rightContainer = document.getElementById('right-shapes');
+            
+            // 左侧4个形状
+            for (let i = 0; i < 4; i++) {
+                const block = createJBlock(jBlockShapes[i], `left-${i}`);
+                leftContainer.appendChild(block);
+            }
+            
+            // 右侧4个形状
+            for (let i = 4; i < 8; i++) {
+                const block = createJBlock(jBlockShapes[i], `right-${i}`);
+                rightContainer.appendChild(block);
+            }
+        }
+
+        function createJBlock(shape, id) {
+            const maxCols = Math.max(...shape.map(row => row.length));
+            const maxRows = shape.length;
+            
+            const blockElement = createElement('div', 'j-block', {
+                'draggable': true,
+                'data-id': id,
+                'data-shape': JSON.stringify(shape)
+            });
+            
+            // 设置网格大小
+            Object.assign(blockElement.style, {
+                gridTemplateColumns: `repeat(${maxCols}, 18px)`,
+                gridTemplateRows: `repeat(${maxRows}, 18px)`
+            });
+            
+            // 创建单元格
+            shape.forEach((row, rowIndex) => {
+                row.forEach((cell, colIndex) => {
+                    const cellElement = createElement('div', 'cell');
+                    if (cell === 1) {
+                        cellElement.classList.add('filled');
+                        cellElement.style.backgroundColor = '#4CAF50';
+                    }
+                    blockElement.appendChild(cellElement);
+                });
+            });
+            
+            // 添加拖拽事件
+            ['dragstart', 'dragend'].forEach(event => {
+                blockElement.addEventListener(event, dragEventHandlers[event]);
+            });
+            
+            return blockElement;
+        }
+
+        // 拖放事件处理器
+        const dragEventHandlers = {
+            dragstart(e) {
+                gameState.draggedShape = JSON.parse(e.target.dataset.shape);
+                gameState.currentColor = colors[gameState.placedBlocks % colors.length];
+                gameState.currentLetter = letters[gameState.placedBlocks % letters.length];
+                e.target.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'copy';
+                
+                // 创建拖拽预览
+                createDragPreview(gameState.draggedShape, gameState.currentColor);
+                
+                // 隐藏原始拖拽图像
+                e.dataTransfer.setDragImage(new Image(), 0, 0);
+            },
+
+            dragend(e) {
+                e.target.classList.remove('dragging');
+                clearPreview();
+                removeDragPreview();
+            },
+
+            dragover(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                
+                const gridPos = getGridPosition(e);
+                showPreview(gridPos.row, gridPos.col);
+            },
+
+            dragleave(e) {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                    clearPreview();
+                }
+            },
+
+            drop(e) {
+                e.preventDefault();
+                
+                const gridPos = getGridPosition(e);
+                
+                if (canPlaceShape(gameState.draggedShape, gridPos.row, gridPos.col)) {
+                    // 保存到历史记录
+                    saveToHistory();
+                    
+                    placeShape(gameState.draggedShape, gridPos.row, gridPos.col, 
+                             gameState.currentColor, gameState.currentLetter);
+                    gameState.placedBlocks++;
+                    updatePlacedCount();
+                    updateGridDisplay();
+                }
+                
+                clearPreview();
+            }
+        };
+
+        function canPlaceShape(shape, startRow, startCol) {
+            if (!shape) return false;
+            
+            return shape.every((row, rowIndex) =>
+                row.every((cell, colIndex) => {
+                    if (cell !== 1) return true;
+                    
+                    const gridRow = startRow + rowIndex;
+                    const gridCol = startCol + colIndex;
+                    
+                    return gridRow >= 0 && gridRow < config.gridSize &&
+                           gridCol >= 0 && gridCol < config.gridSize &&
+                           gameState.grid[gridRow][gridCol] === 0;
+                })
+            );
+        }
+
+        function placeShape(shape, startRow, startCol, color, letter) {
+            shape.forEach((row, rowIndex) => {
+                row.forEach((cell, colIndex) => {
+                    if (cell === 1) {
+                        const gridRow = startRow + rowIndex;
+                        const gridCol = startCol + colIndex;
+                        gameState.grid[gridRow][gridCol] = { 
+                            placed: true, 
+                            color, 
+                            letter 
+                        };
+                    }
+                });
+            });
+        }
+
+        function showPreview(startRow, startCol) {
+            clearPreview();
+            
+            if (!gameState.draggedShape || !canPlaceShape(gameState.draggedShape, startRow, startCol)) {
+                return;
+            }
+            
+            gameState.draggedShape.forEach((row, rowIndex) => {
+                row.forEach((cell, colIndex) => {
+                    if (cell === 1) {
+                        const gridRow = startRow + rowIndex;
+                        const gridCol = startCol + colIndex;
+                        
+                        if (gridRow >= 0 && gridRow < config.gridSize && 
+                            gridCol >= 0 && gridCol < config.gridSize) {
+                            const cellElement = document.querySelector(
+                                `[data-row="${gridRow}"][data-col="${gridCol}"]`
+                            );
+                            if (cellElement && gameState.grid[gridRow][gridCol] === 0) {
+                                cellElement.classList.add('preview');
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        function clearPreview() {
+            document.querySelectorAll('.preview').forEach(cell => {
+                cell.classList.remove('preview');
+            });
+        }
+
+        function updateGridDisplay() {
+            for (let row = 0; row < config.gridSize; row++) {
+                for (let col = 0; col < config.gridSize; col++) {
+                    const cellElement = document.querySelector(
+                        `[data-row="${row}"][data-col="${col}"]`
+                    );
+                    const cellData = gameState.grid[row][col];
+                    
+                    cellElement.classList.toggle('occupied', cellData !== 0);
+                    cellElement.style.backgroundColor = cellData !== 0 ? 
+                        cellData.color : '#fafafa';
+                }
+            }
+        }
+
+        // 工具函数
+        function createElement(tag, className, attributes = {}) {
+            const element = document.createElement(tag);
+            if (className) element.className = className;
+            Object.entries(attributes).forEach(([key, value]) => {
+                element.setAttribute(key, value);
+            });
+            return element;
+        }
+
+        function getGridPosition(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // 精确的网格位置计算，使用配置参数
+            const adjustedX = x - config.borderWidth - config.padding;
+            const adjustedY = y - config.borderWidth - config.padding;
+            
+            const col = Math.floor(adjustedX / (config.cellSize + config.gap));
+            const row = Math.floor(adjustedY / (config.cellSize + config.gap));
+            
+            return { row, col };
+        }
+
+        function updatePlacedCount() {
+            document.getElementById('placed-count').textContent = gameState.placedBlocks;
+        }
+
+        function createDragPreview(shape, color) {
+            const preview = createElement('div', 'drag-preview');
+            
+            const maxCols = Math.max(...shape.map(row => row.length));
+            const maxRows = shape.length;
+            
+            preview.style.gridTemplateColumns = `repeat(${maxCols}, 30px)`;
+            preview.style.gridTemplateRows = `repeat(${maxRows}, 30px)`;
+            
+            shape.forEach((row, rowIndex) => {
+                row.forEach((cell, colIndex) => {
+                    const cellElement = createElement('div', 'cell');
+                    if (cell === 1) {
+                        cellElement.classList.add('filled');
+                        cellElement.style.backgroundColor = color;
+                    }
+                    preview.appendChild(cellElement);
+                });
+            });
+            
+            document.body.appendChild(preview);
+            gameState.dragPreview = preview;
+        }
+        
+        function removeDragPreview() {
+            if (gameState.dragPreview) {
+                document.body.removeChild(gameState.dragPreview);
+                gameState.dragPreview = null;
+            }
+        }
+        
+        function updateDragPreviewPosition(x, y) {
+            if (gameState.dragPreview) {
+                gameState.dragPreview.style.left = (x - 50) + 'px';
+                gameState.dragPreview.style.top = (y - 50) + 'px';
+            }
+        }
+        
+        function clearGrid() {
+            gameState.grid = Array(config.gridSize).fill(null).map(() => 
+                Array(config.gridSize).fill(0)
+            );
+            gameState.placedBlocks = 0;
+            gameState.history = [];
+            updateGridDisplay();
+            updatePlacedCount();
+        }
+
+        function exportASCII() {
+            const ascii = gameState.grid.map(row => 
+                row.map(cell => cell !== 0 ? cell.letter : '·').join(' ')
+            ).join('\n');
+            
+            document.getElementById('ascii-output').textContent = ascii;
+        }
+        
+        function saveToHistory() {
+            gameState.history.push({
+                grid: gameState.grid.map(row => [...row]),
+                placedBlocks: gameState.placedBlocks
+            });
+        }
+        
+        function undo() {
+            if (gameState.history.length > 0) {
+                const lastState = gameState.history.pop();
+                gameState.grid = lastState.grid;
+                gameState.placedBlocks = lastState.placedBlocks;
+                updateGridDisplay();
+                updatePlacedCount();
+            }
+        }
+
+        // 初始化游戏
+        initGame();
+    </script>
+</body>
+</html>

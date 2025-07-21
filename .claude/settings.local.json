@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(timeout 60 python3 final_optimized_solver.py)",
+      "Bash(timeout:*)"
+    ],
+    "deny": []
+  }
+}
